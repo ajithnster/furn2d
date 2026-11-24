@@ -73,6 +73,10 @@
     <div class="card" id="editor">
       <h2 id="selName">Selected</h2>
       <div class="chips" id="looks"></div>
+      <div id="materialBox">
+        <h2>Material</h2>
+        <div class="chips" id="materials"></div>
+      </div>
       <div id="colourBox">
         <h2>Any colour</h2>
         <div class="swatches" id="swatches"></div>
@@ -149,14 +153,14 @@ const S = () => scenes[R().id];
 // ---------- items ----------
 async function addItem(pid, pos = {}) {
   const p = byId[pid], s = S();
-  const it = { pid, look: p.looks[0].id, colour: "#3b5b7a", cx: .5, floor: .9, w: DEFAULT_W[p.category] || .3,
+  const it = { pid, look: p.looks[0].id, colour: "#3b5b7a", material: "plain", cx: .5, floor: .9, w: DEFAULT_W[p.category] || .3,
                flip: false, turn: 0, canvas: null, ...pos };
   s.items.push(it); s.sel = s.items.length - 1;
   await refresh(it); renderUI();
 }
 async function refresh(it) {
   const p = byId[it.pid];
-  if (it.look === "custom" && p.neutral) it.canvas = SofaRecolor.render(await getImg(p.neutral), await getImg(p.shading), it.colour);
+  if (it.look === "custom" && p.neutral) it.canvas = SofaRecolor.render(await getImg(p.neutral), await getImg(p.shading), it.colour, { material: it.material });
   else it.canvas = await getImg((p.looks.find(l => l.id === it.look) || p.looks[0]).src);
   draw();
 }
@@ -259,6 +263,10 @@ function renderUI() {
     $("#selName").textContent = p.name;
     const looks = [...(p.neutral ? [{ id: "custom", name: "Custom colour" }] : []), ...p.looks];
     $("#looks").replaceChildren(...looks.map(l => chip(l.name, l.id === it.look, () => { it.look = l.id; renderUI(); refresh(it); })));
+    // Material applies to the recolourable version; picking one switches to it.
+    $("#materialBox").classList.toggle("hide", !p.neutral);
+    $("#materials").replaceChildren(...Object.entries(SofaRecolor.MATERIALS).map(([id, m]) =>
+      chip(m.name, it.look === "custom" && it.material === id, () => { it.look = "custom"; it.material = id; renderUI(); refresh(it); })));
     $("#colourBox").classList.toggle("hide", it.look !== "custom");
     $("#picker").value = it.colour; $("#hex").textContent = it.colour;
     document.querySelectorAll("#swatches .sw").forEach(b => b.setAttribute("aria-pressed", b.dataset.c === it.colour));
