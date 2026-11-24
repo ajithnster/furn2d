@@ -4,3 +4,5 @@ cache/
 out/
 __pycache__/
 models/
+openPlan3D/
+.DS_Store

@@ -1,0 +1,19 @@
+[Unit]
+Description=openPlan3D house plan editor (medharank.com/showroom/plan)
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/openplan3d
+ExecStart=/usr/bin/node /opt/openplan3d/build
+Environment=PORT=8093
+Environment=HOST=127.0.0.1
+Environment=ORIGIN=https://medharank.com
+# Don't send visitors' usage to the upstream openPlan3D project's Firebase analytics.
+Environment=PUBLIC_ENABLE_ANALYTICS=false
+Environment=NODE_ENV=production
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

@@ -73,6 +73,22 @@ are in the unit file. Photos are not stored. Logs: `journalctl -u showroom-api`.
 
 Update it: copy `server/clear_room.py` to `/opt/showroom-api/` and `systemctl restart showroom-api`.
 
+## House plan tab (live site)
+
+The showroom page's **House plan** tab embeds the openPlan3D floor-plan editor (separate repo,
+checked out in `openPlan3D/`, not part of this one). It runs on medharank.com as
+`openplan3d.service` (Node, 127.0.0.1:8093), proxied by nginx at `/showroom/plan/`; its
+sharing / assistant / MCP endpoints are blocked there and analytics are off. Plans are saved
+in each visitor's browser.
+
+Update it:
+
+```bash
+cd openPlan3D && BASE_PATH=/showroom/plan BUILD_DIR=build-showroom NODE_ENV=production npm run build
+# copy build-showroom/ to /opt/openplan3d/build (plus package*.json; npm ci --omit=dev if deps changed)
+# then: systemctl restart openplan3d
+```
+
 ## Setup
 
 ```bash

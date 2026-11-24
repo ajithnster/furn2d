@@ -47,6 +47,15 @@
   .item small { color: var(--muted); }
   .x { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 16px; line-height: 1; }
   .hide { display: none !important; }
+  /* House plan tab: the 2D/3D plan editor (openPlan3D) takes the full width. */
+  body.plan .wrap { grid-template-columns: minmax(0, 1fr); }
+  body.plan aside, body.plan .stage { display: none; }
+  .planbox { display: none; flex-direction: column; gap: 8px; }
+  body.plan .planbox { display: flex; }
+  .planbox iframe { width: 100%; height: calc(100vh - 120px); min-height: 520px; border: 1px solid var(--line);
+                    border-radius: 12px; background: #111827; }
+  .planbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .planbar a { color: var(--ink); font-size: 12.5px; }
 </style>
 </head>
 <body>
@@ -56,6 +65,13 @@
     <div class="stage">
       <canvas id="stage" width="1536" height="1024"></canvas>
       <div class="hint">Click to select · drag to move · scroll to resize</div>
+    </div>
+    <div class="planbox" id="planBox">
+      <div class="planbar">
+        <span class="note">Draw your house plan in 2D, then view it in 3D. Plans are saved in this browser.</span>
+        <a href="plan/" target="_blank" rel="noopener">Open in a new tab ↗</a>
+      </div>
+      <iframe id="planFrame" title="House plan editor" allow="fullscreen; clipboard-write"></iframe>
     </div>
   </div>
   <aside>
@@ -247,7 +263,8 @@ function chip(text, pressed, onclick, cls = "chip") {
 }
 function renderUI() {
   const room = R(), s = S();
-  $("#roomTabs").replaceChildren(...ROOMS.map((r, i) => chip(r.name, i === roomIdx, () => switchRoom(i), "tab")));
+  $("#roomTabs").replaceChildren(...ROOMS.map((r, i) => chip(r.name, !planMode && i === roomIdx, () => switchRoom(i), "tab")),
+                                 chip("House plan", planMode, openPlan, "tab"));
   $("#cats").replaceChildren(...room.cats.map(c => chip(CAT_NAMES[c] || c, c === s.cat, () => { s.cat = c; renderUI(); })));
   const list = ofCat(s.cat);
   $("#addProduct").replaceChildren(...list.map(p => new Option(p.name, p.id)));
@@ -304,7 +321,21 @@ function renderUI() {
   }
 }
 
+// ---------- House plan tab: openPlan3D, served at /showroom/plan/ ----------
+let planMode = false;
+function openPlan() {
+  planMode = true; document.body.classList.add("plan");
+  const f = $("#planFrame");
+  if (!f.src) {                         // load the editor on first open only
+    if (location.protocol === "file:") f.srcdoc = '<p style="font:14px sans-serif;color:#ddd;padding:24px">' +
+      "The house plan editor is available on the website version of this page.</p>";
+    else f.src = "plan/";
+  }
+  renderUI();
+}
+
 async function switchRoom(i) {
+  planMode = false; document.body.classList.remove("plan");
   roomIdx = i; const room = R(), s = S();
   renderUI(); await composeRoom();
   if (!s.started) {           // first visit: lay out the room's starting furniture
