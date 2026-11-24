@@ -63,6 +63,16 @@ Background removal uses BiRefNet-lite (MIT) locally: `models/birefnet_lite.onnx`
 (download: `curl -L -o models/birefnet_lite.onnx https://huggingface.co/onnx-community/BiRefNet_lite-ONNX/resolve/main/onnx/model.onnx`).
 One Gemini call per sofa for the neutral version, plus one per named fabric.
 
+## Remove furniture from an uploaded room (live site)
+
+On the showroom page, **Upload your room…** then **Remove furniture** sends the photo to
+`server/clear_room.py` (Gemini image edit, ≈ $0.04 per photo) and returns the empty room.
+It runs on medharank.com as `showroom-api.service` (127.0.0.1:8092), proxied by nginx at
+`/showroom/api/`. The key is in `/etc/showroom-api.env`; limits (`PER_IP_HOUR`, `PER_DAY`)
+are in the unit file. Photos are not stored. Logs: `journalctl -u showroom-api`.
+
+Update it: copy `server/clear_room.py` to `/opt/showroom-api/` and `systemctl restart showroom-api`.
+
 ## Setup
 
 ```bash

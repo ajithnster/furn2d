@@ -96,7 +96,14 @@
     <div class="card">
       <h2>Background</h2>
       <div class="chips" id="bgs"></div>
-      <div class="row"><label class="chip">Upload image…<input type="file" id="upload" accept="image/*" hidden></label></div>
+      <div class="row"><label class="chip">Upload your room…<input type="file" id="upload" accept="image/*" hidden></label></div>
+      <div id="clearBox" class="hide">
+        <div class="row">
+          <button class="btn" id="clearRoom">Remove furniture</button>
+          <button class="chip hide" id="showOriginal" aria-pressed="false">Show original</button>
+        </div>
+        <div class="note" id="clearMsg" role="status" style="margin-top:6px"></div>
+      </div>
       <div id="roomStyle">
         <div id="wallBox">
           <h2>Walls</h2>
@@ -209,7 +216,7 @@ function outline(it) {
 }
 function draw() {
   const W = stage.width, H = stage.height, s = S();
-  const bgImg = s.bg.id === "upload" ? s.upload : s.bg.id === "room" ? s.bgImg : null;
+  const bgImg = s.bg.id === "upload" ? (s.showOriginal && s.uploadOriginal || s.upload) : s.bg.id === "room" ? s.bgImg : null;
   if (bgImg) { const k = Math.max(W / bgImg.width, H / bgImg.height);
     ctx.drawImage(bgImg, (W - bgImg.width * k) / 2, (H - bgImg.height * k) / 2, bgImg.width * k, bgImg.height * k);
   } else { ctx.fillStyle = s.bg.fill || "#f4efe7"; ctx.fillRect(0, 0, W, H); }
@@ -276,6 +283,15 @@ function renderUI() {
   }
 
   document.querySelectorAll("#bgs .chip").forEach(c => c.setAttribute("aria-pressed", c.dataset.id === s.bg.id));
+  const up = s.bg.id === "upload" && s.upload;
+  $("#clearBox").classList.toggle("hide", !up);
+  if (up) {
+    $("#clearRoom").textContent = clearing ? "Removing furniture…" : s.cleared ? "Try again" : "Remove furniture";
+    $("#clearRoom").disabled = clearing;
+    $("#showOriginal").classList.toggle("hide", !s.cleared);
+    $("#showOriginal").setAttribute("aria-pressed", !!s.showOriginal);
+    $("#clearMsg").textContent = s.clearMsg || "Clears the furniture from your photo with AI so you can place new pieces.";
+  }
   const styled = s.bg.id === "room";
   $("#roomStyle").classList.toggle("hide", !styled);
   $("#wallBox").classList.toggle("hide", !room.wallShading);
@@ -318,8 +334,36 @@ for (const bg of BGS) {
   const b = chip(bg.name, false, async () => { S().bg = bg; if (bg.id === "room") await composeRoom(); renderUI(); draw(); });
   b.dataset.id = bg.id; $("#bgs").append(b);
 }
-$("#upload").onchange = async e => { const f = e.target.files[0]; if (!f) return;
-  S().upload = await load(URL.createObjectURL(f)); S().bg = { id: "upload" }; renderUI(); draw(); };
+$("#upload").onchange = async e => { const f = e.target.files[0]; if (!f) return; e.target.value = "";
+  const s = S(); s.upload = await load(URL.createObjectURL(f)); s.bg = { id: "upload" };
+  s.uploadOriginal = null; s.cleared = false; s.showOriginal = false; s.clearMsg = ""; renderUI(); draw(); };
+
+// ---------- remove furniture from an uploaded room (server: /showroom/api/clear-room) ----------
+let clearing = false;
+async function clearRoom() {
+  const s = S(); if (!s.upload || clearing) return;
+  const src = s.uploadOriginal || s.upload;           // "Try again" always starts from the original
+  const w = src.naturalWidth || src.width, h = src.naturalHeight || src.height, k = Math.min(1, 1536 / Math.max(w, h));
+  const c = document.createElement("canvas"); c.width = Math.round(w * k); c.height = Math.round(h * k);
+  c.getContext("2d").drawImage(src, 0, 0, c.width, c.height);
+  const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.9));
+  clearing = true; s.clearMsg = "Removing furniture… this takes about 10–20 seconds."; renderUI();
+  try {
+    if (location.protocol === "file:") throw new Error("Removing furniture works on the website version of this page.");
+    const r = await fetch("api/clear-room", { method: "POST", body: blob,
+      headers: { "Content-Type": "image/jpeg", "X-Image-Width": c.width, "X-Image-Height": c.height } });
+    if (!r.ok) { let m; try { m = (await r.json()).error; } catch {} throw new Error(m || `Something went wrong (${r.status}). Please try again.`); }
+    const out = await load(URL.createObjectURL(await r.blob()));
+    const o = document.createElement("canvas"); o.width = c.width; o.height = c.height;   // back to the photo's shape
+    o.getContext("2d").drawImage(out, 0, 0, o.width, o.height);
+    s.uploadOriginal = src; s.upload = o; s.cleared = true; s.showOriginal = false;
+    s.clearMsg = "Done. Add furniture from the panel above. AI can change small details; try again if needed.";
+  } catch (err) {
+    s.clearMsg = err.message || "Couldn't reach the server. Please try again.";
+  } finally { clearing = false; renderUI(); draw(); }
+}
+$("#clearRoom").onclick = clearRoom;
+$("#showOriginal").onclick = () => { const s = S(); s.showOriginal = !s.showOriginal; renderUI(); draw(); };
 const swatchRow = (host, list, key) => list.forEach(([c, name]) => {
   const b = chip("", false, () => { S()[key] = c; renderUI(); composeRoom(); }, "sw"); b.title = name;
   if (c) { b.style.background = c; b.dataset.c = c; }

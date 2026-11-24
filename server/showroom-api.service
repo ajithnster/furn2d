@@ -1,0 +1,20 @@
+[Unit]
+Description=Showroom room-clearing API (medharank.com/showroom/api)
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/showroom-api
+ExecStart=/usr/bin/python3 /opt/showroom-api/clear_room.py
+Environment=PORT=8092
+Environment=PER_IP_HOUR=5
+Environment=PER_DAY=100
+Environment=STATE_FILE=/var/lib/showroom-api/usage.json
+# GEMINI_API_KEY=... lives in this file (root-owned, chmod 600).
+EnvironmentFile=/etc/showroom-api.env
+StateDirectory=showroom-api
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
