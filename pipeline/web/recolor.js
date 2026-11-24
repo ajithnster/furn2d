@@ -52,7 +52,7 @@
     // Chenille: soft piled rows with a fuzzy, uneven surface.
     chenille: (x, y) => 0.45 * Math.cos(TAU * y * 20 / N) + 0.4 * noise(x, y, 16, 32, 5) + 0.15 * noise(x, y, 64, 64, 6),
     // Velvet: very fine pile plus large soft "crushed" patches.
-    velvet: (x, y) => 0.45 * noise(x, y, 4, 4, 7) + 0.55 * noise(x, y, 64, 64, 8),
+    velvet: (x, y) => 0.35 * noise(x, y, 8, 8, 7) + 0.65 * noise(x, y, 64, 64, 8),
     // Leather: pebbled grain (fine creases) with faint mottling.
     leather: (x, y) => 0.8 * (0.5 - Math.abs(noise(x, y, 32, 32, 9))) * 2 + 0.2 * noise(x, y, 8, 8, 10),
   };
@@ -74,8 +74,8 @@
     linen:    { name: "Linen",    flatten: 0.8,  contrast: 1.0, sheen: 0.30, tint: 0,    gloss: 0,    texture: "linen",    amp: 0.20 },
     chenille: { name: "Chenille", flatten: 0.7,  contrast: 1.2, sheen: 0.45, tint: 0.3,  gloss: 0,    texture: "chenille", amp: 0.16 },
     boucle:   { name: "Bouclé",   flatten: 0.6,  contrast: 0.8, sheen: 0.25, tint: 0,    gloss: 0,    texture: "boucle",   amp: 0.26 },
-    velvet:   { name: "Velvet",   flatten: 0.9,  contrast: 1.7, sheen: 0.90, tint: 0.65, gloss: 0,    texture: "velvet",   amp: 0.07 },
-    leather:  { name: "Leather",  flatten: 1.0,  contrast: 2.0, sheen: 0.30, tint: 0.2,  gloss: 0.5,  texture: "leather",  amp: 0.035 },
+    velvet:   { name: "Velvet",   flatten: 0.9,  contrast: 1.7, sheen: 0.90, tint: 0.65, gloss: 0,    texture: "velvet",   amp: 0.05 },
+    leather:  { name: "Leather",  flatten: 1.0,  contrast: 1.6, sheen: 0.30, tint: 0.2,  gloss: 0.32, texture: "leather",  amp: 0.035 },
   };
 
   function pixels(img) {
@@ -87,29 +87,55 @@
     return { canvas: c, ctx: x, data: x.getImageData(0, 0, c.width, c.height) };
   }
 
-  // Lighting in linear light, plus a mask-weighted blur of it (broad folds without the fabric
-  // texture that was photographed). Blur radius scales with the image width.
+  // Lighting with the photographed fabric's texture removed but seams, folds and form kept.
+  // The (log) lighting is split into detail bands between mask-weighted blurs; in each band,
+  // values near the band's typical amplitude (dense texture, e.g. bouclé clumps) are shrunk to
+  // zero and only sparse strong features (seams, cushion edges, creases) survive. This is
+  // wavelet-style denoising; a plain blur either leaves mottling or erases the cushions.
+  const SIGMAS = [3, 8, 20, 45];             // band edges in px, for a 1400px-wide asset
+  const SHRINK = 3;                           // keep band detail above SHRINK × its noise level
   function lighting(shade, W, H) {
     const s = shade.data.data, n = W * H, L = new Float32Array(n), M = new Float32Array(n);
     for (let p = 0; p < n; p++) { const m = s[p * 4 + 3] / 255; M[p] = m; L[p] = toLin(s[p * 4] / 255) * m; }
-    const r = Math.max(2, Math.round(10 * W / 1400));
-    const box = (a, horiz) => {               // one separable box-blur pass (running sum)
-      const o = new Float32Array(n), len = horiz ? W : H, lines = horiz ? H : W;
+    const box = (a, r, horiz) => {            // one separable box-blur pass (running sum)
+      const o = new Float32Array(n), len = horiz ? W : H, lines = horiz ? H : W, w = 2 * r + 1;
       for (let l = 0; l < lines; l++) {
         const at = i => horiz ? l * W + i : i * W + l;
         let sum = 0;
         for (let i = -r; i <= r; i++) sum += a[at(Math.min(len - 1, Math.max(0, i)))];
         for (let i = 0; i < len; i++) {
-          o[at(i)] = sum / (2 * r + 1);
+          o[at(i)] = sum / w;
           sum += a[at(Math.min(len - 1, i + r + 1))] - a[at(Math.max(0, i - r))];
         }
       }
       return o;
     };
-    const blur = a => box(box(box(box(a, true), false), true), false);
-    const bl = blur(L), bm = blur(M), smooth = new Float32Array(n);
-    for (let p = 0; p < n; p++) smooth[p] = bm[p] > 1e-3 ? bl[p] / bm[p] : 0;
-    return smooth;
+    // ≈ Gaussian of the given sigma: three box passes per axis.
+    const gauss = (a, sigma) => {
+      const r = Math.max(1, Math.round((Math.sqrt(4 * sigma * sigma + 1) - 1) / 2));
+      for (let k = 0; k < 3; k++) a = box(box(a, r, true), r, false);
+      return a;
+    };
+    const k = W / 1400;
+    const levels = SIGMAS.map(sg => {         // log of the mask-weighted blur at each scale
+      const bl = gauss(L, sg * k), bm = gauss(M, sg * k), out = new Float32Array(n);
+      for (let p = 0; p < n; p++) out[p] = Math.log(Math.max(1e-4, bm[p] > 1e-3 ? bl[p] / bm[p] : 0));
+      return out;
+    });
+    const inner = [];                         // sample of upholstery pixels for noise estimates
+    for (let p = 0; p < n; p += 5) if (M[p] > 0.5) inner.push(p);
+    const res = Float32Array.from(levels[levels.length - 1]);
+    for (let j = 0; j < levels.length - 1; j++) {
+      const a = levels[j], b = levels[j + 1];
+      const mags = inner.map(p => Math.abs(a[p] - b[p])).sort((x, y) => x - y);
+      const T = SHRINK * (mags[mags.length >> 1] || 0) / 0.6745;   // robust noise level × SHRINK
+      for (let p = 0; p < n; p++) {
+        const d = a[p] - b[p], ad = Math.abs(d);
+        if (ad > T) res[p] += d > 0 ? ad - T : T - ad;
+      }
+    }
+    for (let p = 0; p < n; p++) res[p] = Math.exp(res[p]);
+    return res;
   }
 
   const cache = new WeakMap();
@@ -156,7 +182,7 @@
     const contrast = 1 + (mat.contrast - 1) * Math.min(1, REF_SD / sd);
     sample.sort((a, b) => a - b);
     const q = t => Math.exp(contrast * (sample[Math.floor(t * (sample.length - 1))] ?? 0));
-    const specLo = q(0.80), specHi = Math.max(q(0.995), specLo * 1.05);
+    const specLo = q(0.85), specHi = Math.max(q(0.999), specLo * 1.3);
     for (let i = 0, p = 0; i < b.length; i += 4, p++) {
       const m = s[i + 3] / 255;
       o[i + 3] = b[i + 3];
