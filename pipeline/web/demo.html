@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Room Composer</title>
+<style>
+  :root { --bg: #f6f3ee; --panel: #fff; --ink: #2b2722; --muted: #7a7268; --line: #e4ded5; --accent: #2b2722; --chip: #f1ece5; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); }
+  .wrap { display: grid; grid-template-columns: minmax(0, 1fr) 310px; gap: 20px; padding: 20px; max-width: 1440px; margin: 0 auto; }
+  @media (max-width: 880px) { .wrap { grid-template-columns: 1fr; padding: 16px; } }
+  .left { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tab { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 10px; padding: 8px 14px;
+         font: inherit; font-weight: 600; cursor: pointer; }
+  .tab[aria-pressed=true] { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .stage { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; position: relative; }
+  canvas#stage { display: block; width: 100%; height: auto; touch-action: none; }
+  .hint { position: absolute; left: 12px; bottom: 10px; font-size: 12px; color: #fff; background: rgba(0,0,0,.45);
+          padding: 3px 8px; border-radius: 6px; pointer-events: none; }
+  aside { display: flex; flex-direction: column; gap: 14px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  h1 { font-size: 17px; margin: 0 0 2px; }
+  .sub { color: var(--muted); font-size: 12.5px; }
+  h2 { font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 14px 0 8px; font-weight: 600; }
+  .card > h2:first-child { margin-top: 0; }
+  select { width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: #fff; font: inherit; color: var(--ink); }
+  input[type=range] { width: 100%; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { border: 1px solid var(--line); background: var(--chip); color: var(--ink); border-radius: 999px; padding: 5px 11px;
+          font: inherit; font-size: 12.5px; cursor: pointer; }
+  .chip[aria-pressed=true] { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .swatches { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
+  .sw { aspect-ratio: 1; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--line); cursor: pointer; padding: 0; }
+  .sw[aria-pressed=true] { box-shadow: 0 0 0 2px var(--accent); }
+  .row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+  input[type=color] { width: 42px; height: 30px; border: 1px solid var(--line); border-radius: 6px; padding: 2px; background: #fff; }
+  .note { color: var(--muted); font-size: 12px; }
+  .btn { padding: 8px 12px; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent); color: #fff; font: inherit; cursor: pointer; }
+  .btn:disabled { opacity: .4; cursor: default; }
+  .btn.ghost { background: #fff; color: var(--ink); border-color: var(--line); }
+  .items { display: flex; flex-direction: column; gap: 4px; }
+  .item { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px;
+          border: 1px solid transparent; cursor: pointer; }
+  .item[aria-selected=true] { border-color: var(--accent); background: var(--chip); }
+  .item small { color: var(--muted); }
+  .x { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 16px; line-height: 1; }
+  .hide { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="left">
+    <div class="tabs" id="roomTabs"></div>
+    <div class="stage">
+      <canvas id="stage" width="1536" height="1024"></canvas>
+      <div class="hint">Click to select · drag to move · scroll to resize</div>
+    </div>
+  </div>
+  <aside>
+    <div class="card">
+      <h1>Room composer</h1>
+      <div class="sub">Background-free furniture. Mix pieces, colours, walls and floors.</div>
+      <h2 style="margin-top:14px">Add furniture</h2>
+      <div class="chips" id="cats"></div>
+      <div class="row"><select id="addProduct"></select><button class="btn" id="add">Add</button></div>
+      <div class="note hide" id="noProducts">No pieces of this type built yet.</div>
+      <h2>In the room</h2>
+      <div class="items" id="items"></div>
+    </div>
+
+    <div class="card" id="editor">
+      <h2 id="selName">Selected</h2>
+      <div class="chips" id="looks"></div>
+      <div id="colourBox">
+        <h2>Any colour</h2>
+        <div class="swatches" id="swatches"></div>
+        <div class="row"><input type="color" id="picker" value="#3b5b7a"><span class="note" id="hex">#3b5b7a</span></div>
+      </div>
+      <h2>Size</h2>
+      <input type="range" id="size" min="5" max="100">
+      <h2>Orientation</h2>
+      <div class="row" style="margin-top:0">
+        <button class="chip" id="mirror" aria-pressed="false">⇋ Mirror</button>
+        <button class="chip" id="resetTurn">Reset</button>
+      </div>
+      <div class="row"><span class="note" style="min-width:34px">Turn</span><input type="range" id="turn" min="-25" max="25" step="1"><span class="note" id="turnVal" style="min-width:34px;text-align:right">0°</span></div>
+      <div class="note">Turns the piece on the spot. Best within ±20°.</div>
+    </div>
+
+    <div class="card">
+      <h2>Background</h2>
+      <div class="chips" id="bgs"></div>
+      <div class="row"><label class="chip">Upload image…<input type="file" id="upload" accept="image/*" hidden></label></div>
+      <div id="roomStyle">
+        <div id="wallBox">
+          <h2>Walls</h2>
+          <div class="swatches" id="walls"></div>
+          <div class="row"><input type="color" id="wallPicker" value="#e2d8ca"><span class="note" id="wallHex">Original white</span></div>
+        </div>
+        <h2>Floor</h2>
+        <div class="chips" id="floors"></div>
+        <div id="woodBox">
+          <h2>Wood tone</h2>
+          <div class="swatches" id="woods"></div>
+        </div>
+      </div>
+      <div class="row"><button class="btn ghost" id="download">Download image</button></div>
+    </div>
+  </aside>
+</div>
+<script>
+/*RECOLOR_JS*/
+</script>
+<script>
+const PRODUCTS = "__PRODUCTS__";
+const ROOMS = "__ROOMS__";
+const CAT_NAMES = { sofa: "Sofas", chair: "Chairs", "coffee-table": "Coffee tables", bed: "Beds",
+                    "dining-table": "Dining tables", "dining-chair": "Dining chairs" };
+const DEFAULT_W = { sofa: .5, chair: .22, "coffee-table": .34, bed: .5, "dining-table": .42, "dining-chair": .13 };
+const PRESETS = ["#e9e4da","#c9b9a3","#a07a55","#6e4a33","#8a8f86","#55606b","#2f3b4c","#3b5b7a",
+                 "#6f8f8a","#5f6b3f","#b8893b","#a4523a","#7a3b45","#c79aa0","#3a3a3a","#1f2a24"];
+const WALLS = [[null, "Original white"], ["#e2d8ca", "Warm greige"], ["#c3cdb5", "Sage"], ["#b8c8d4", "Dusty blue"],
+               ["#ebcbbf", "Blush"], ["#d29a7d", "Terracotta"], ["#9aa3a8", "Stone grey"], ["#7c7e80", "Charcoal"]];
+const WOODS = [[null, "Natural oak"], ["#d9cdb8", "Whitewash"], ["#b9a58c", "Grey wash"], ["#c8955a", "Honey"],
+               ["#9a6a43", "Chestnut"], ["#6b4630", "Walnut"], ["#4a3326", "Espresso"], ["#2f2520", "Ebony"]];
+const BGS = [{ id: "room", name: "Room photo" }, { id: "white", name: "Warm white", fill: "#f4efe7" },
+             { id: "sage", name: "Sage", fill: "#c3cdb5" }, { id: "blue", name: "Dusty blue", fill: "#b8c8d4" },
+             { id: "charcoal", name: "Charcoal", fill: "#3a3836" }];
+const FLOOR = 0.86, OBJ_W = 0.88;      // asset geometry: floor line at 86% height, object 88% wide
+const HORIZON = 0.45, FOCAL = 2.2;     // camera model for turning pieces
+
+const $ = s => document.querySelector(s);
+const stage = $("#stage"), ctx = stage.getContext("2d");
+const load = src => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+const imgs = {}; const getImg = async src => imgs[src] ??= await load(src);
+const byId = Object.fromEntries(PRODUCTS.map(p => [p.id, p]));
+const ofCat = c => PRODUCTS.filter(p => p.category === c);
+
+// One scene per room, kept when switching rooms.
+const scenes = Object.fromEntries(ROOMS.map(r => [r.id, {
+  items: [], sel: -1, cat: r.cats.find(c => ofCat(c).length) || r.cats[0],
+  bg: BGS[0], bgImg: null, upload: null, wall: null, floor: 0, wood: null, started: false }]));
+let roomIdx = 0;
+const R = () => ROOMS[roomIdx];
+const S = () => scenes[R().id];
+
+// ---------- items ----------
+async function addItem(pid, pos = {}) {
+  const p = byId[pid], s = S();
+  const it = { pid, look: p.looks[0].id, colour: "#3b5b7a", cx: .5, floor: .9, w: DEFAULT_W[p.category] || .3,
+               flip: false, turn: 0, canvas: null, ...pos };
+  s.items.push(it); s.sel = s.items.length - 1;
+  await refresh(it); renderUI();
+}
+async function refresh(it) {
+  const p = byId[it.pid];
+  if (it.look === "custom" && p.neutral) it.canvas = SofaRecolor.render(await getImg(p.neutral), await getImg(p.shading), it.colour);
+  else it.canvas = await getImg((p.looks.find(l => l.id === it.look) || p.looks[0]).src);
+  draw();
+}
+function rect(it) {
+  const W = stage.width, H = stage.height, w = W * it.w / OBJ_W, h = w * it.canvas.height / it.canvas.width;
+  return { x: W * it.cx - w / 2, y: H * it.floor - h * FLOOR, w, h };
+}
+
+// ---------- drawing (turn = card standing on the floor, spun about a vertical axis) ----------
+function project(it, u, y) {
+  const W = stage.width, H = stage.height, f = FOCAL * W, th = it.turn * Math.PI / 180;
+  const s = f / (f + u * Math.sin(th)), hz = H * HORIZON;
+  return { x: W * it.cx + u * Math.cos(th) * s, y: hz + (y - hz) * s };
+}
+const scaled = new WeakMap();
+function atWidth(src, w) {
+  w = Math.max(1, Math.round(w)); let c = scaled.get(src);
+  if (!c || c.width !== w) {
+    c = document.createElement("canvas"); c.width = w; c.height = Math.round(src.height * w / src.width);
+    const x = c.getContext("2d"); x.imageSmoothingQuality = "high"; x.drawImage(src, 0, 0, c.width, c.height); scaled.set(src, c);
+  }
+  return c;
+}
+function drawItem(it) {
+  const r = rect(it);
+  if (!it.turn) {
+    ctx.save(); if (it.flip) { ctx.translate(2 * (r.x + r.w / 2), 0); ctx.scale(-1, 1); }
+    ctx.drawImage(it.canvas, r.x, r.y, r.w, r.h); ctx.restore(); return;
+  }
+  const src = atWidth(it.canvas, r.w), W = stage.width, H = stage.height;
+  const th = it.turn * Math.PI / 180, c = Math.cos(th), sn = Math.sin(th), f = FOCAL * W, hz = H * HORIZON;
+  const xa = project(it, -r.w / 2, 0).x, xb = project(it, r.w / 2, 0).x, cx = W * it.cx;
+  for (let dx = Math.floor(Math.min(xa, xb)); dx < Math.ceil(Math.max(xa, xb)); dx++) {
+    const xp = dx + 0.5 - cx, u = xp * f / (c * f - xp * sn);
+    if (u < -r.w / 2 || u > r.w / 2) continue;
+    const s = f / (f + u * sn);
+    let sx = Math.floor(u + r.w / 2); if (it.flip) sx = src.width - 1 - sx;
+    sx = Math.min(src.width - 1, Math.max(0, sx));
+    const top = hz + (r.y - hz) * s, bot = hz + (r.y + r.h - hz) * s;
+    ctx.drawImage(src, sx, 0, 1, src.height, dx, top, 1.6, bot - top);
+  }
+}
+function outline(it) {
+  const r = rect(it), ow = r.w * OBJ_W, t = r.y + r.h * 0.04, b = r.y + r.h * (FLOOR + 0.01);
+  return [[-ow / 2, t], [ow / 2, t], [ow / 2, b], [-ow / 2, b]].map(([u, y]) => project(it, u, y));
+}
+function draw() {
+  const W = stage.width, H = stage.height, s = S();
+  const bgImg = s.bg.id === "upload" ? s.upload : s.bg.id === "room" ? s.bgImg : null;
+  if (bgImg) { const k = Math.max(W / bgImg.width, H / bgImg.height);
+    ctx.drawImage(bgImg, (W - bgImg.width * k) / 2, (H - bgImg.height * k) / 2, bgImg.width * k, bgImg.height * k);
+  } else { ctx.fillStyle = s.bg.fill || "#f4efe7"; ctx.fillRect(0, 0, W, H); }
+  for (const it of s.items.filter(i => i.canvas).sort((a, b) => a.floor - b.floor)) drawItem(it);
+  const sel = s.items[s.sel];
+  if (sel?.canvas) {
+    const pts = outline(sel);
+    ctx.save(); ctx.setLineDash([10, 8]); ctx.lineWidth = 2; ctx.strokeStyle = "rgba(255,255,255,.9)";
+    ctx.shadowColor = "rgba(0,0,0,.5)"; ctx.shadowBlur = 4; ctx.beginPath();
+    pts.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.closePath(); ctx.stroke(); ctx.restore();
+  }
+}
+
+// ---------- room photo: floor style, then walls, then wood tone ----------
+let composeToken = 0;
+async function composeRoom() {
+  const token = ++composeToken, room = R(), s = S(), fl = room.floors[s.floor];
+  let img = await getImg(fl.src);
+  if (s.wall && room.wallShading) img = SofaRecolor.render(img, await getImg(room.wallShading), s.wall, { sheen: 0.35 });
+  if (s.wood && fl.tintable && room.floorShading) img = SofaRecolor.render(img, await getImg(room.floorShading), s.wood, { sheen: 0.6 });
+  if (token === composeToken) { s.bgImg = img; draw(); }
+}
+
+// ---------- UI ----------
+function chip(text, pressed, onclick, cls = "chip") {
+  const b = document.createElement("button"); b.className = cls; b.textContent = text;
+  b.setAttribute("aria-pressed", pressed); b.onclick = onclick; return b;
+}
+function renderUI() {
+  const room = R(), s = S();
+  $("#roomTabs").replaceChildren(...ROOMS.map((r, i) => chip(r.name, i === roomIdx, () => switchRoom(i), "tab")));
+  $("#cats").replaceChildren(...room.cats.map(c => chip(CAT_NAMES[c] || c, c === s.cat, () => { s.cat = c; renderUI(); })));
+  const list = ofCat(s.cat);
+  $("#addProduct").replaceChildren(...list.map(p => new Option(p.name, p.id)));
+  $("#noProducts").classList.toggle("hide", list.length > 0);
+  $("#add").disabled = !list.length;
+
+  $("#items").innerHTML = s.items.length ? "" : '<div class="note">Nothing yet. Add a piece above.</div>';
+  s.items.forEach((it, i) => {
+    const d = document.createElement("div"); d.className = "item"; d.setAttribute("aria-selected", i === s.sel);
+    d.innerHTML = `<span>${byId[it.pid].name}<br><small>${CAT_NAMES[byId[it.pid].category] || ""}</small></span>`;
+    const x = document.createElement("button"); x.className = "x"; x.textContent = "×"; x.title = "Remove";
+    x.onclick = e => { e.stopPropagation(); s.items.splice(i, 1); s.sel = Math.min(s.sel, s.items.length - 1); renderUI(); draw(); };
+    d.append(x); d.onclick = () => { s.sel = i; renderUI(); draw(); }; $("#items").append(d);
+  });
+
+  const it = s.items[s.sel];
+  $("#editor").classList.toggle("hide", !it);
+  if (it) {
+    const p = byId[it.pid];
+    $("#selName").textContent = p.name;
+    const looks = [...(p.neutral ? [{ id: "custom", name: "Custom colour" }] : []), ...p.looks];
+    $("#looks").replaceChildren(...looks.map(l => chip(l.name, l.id === it.look, () => { it.look = l.id; renderUI(); refresh(it); })));
+    $("#colourBox").classList.toggle("hide", it.look !== "custom");
+    $("#picker").value = it.colour; $("#hex").textContent = it.colour;
+    document.querySelectorAll("#swatches .sw").forEach(b => b.setAttribute("aria-pressed", b.dataset.c === it.colour));
+    $("#size").value = Math.round(it.w * 100);
+    $("#mirror").setAttribute("aria-pressed", it.flip);
+    $("#turn").value = it.turn; $("#turnVal").textContent = `${it.turn}°`;
+  }
+
+  document.querySelectorAll("#bgs .chip").forEach(c => c.setAttribute("aria-pressed", c.dataset.id === s.bg.id));
+  const styled = s.bg.id === "room";
+  $("#roomStyle").classList.toggle("hide", !styled);
+  $("#wallBox").classList.toggle("hide", !room.wallShading);
+  if (styled) {
+    document.querySelectorAll("#walls .sw").forEach(b => b.setAttribute("aria-pressed", (b.dataset.c || null) === s.wall));
+    $("#wallHex").textContent = s.wall ? (WALLS.find(w => w[0] === s.wall)?.[1] || s.wall) : "Original white";
+    $("#floors").replaceChildren(...room.floors.map((fl, i) => chip(fl.name, i === s.floor, () => { s.floor = i; renderUI(); composeRoom(); })));
+    $("#woodBox").classList.toggle("hide", !(room.floors[s.floor].tintable && room.floorShading));
+    document.querySelectorAll("#woods .sw").forEach(b => b.setAttribute("aria-pressed", (b.dataset.c || null) === s.wood));
+  }
+}
+
+async function switchRoom(i) {
+  roomIdx = i; const room = R(), s = S();
+  renderUI(); await composeRoom();
+  if (!s.started) {           // first visit: lay out the room's starting furniture
+    s.started = true;
+    for (const st of room.start) {
+      const list = ofCat(st.cat), k = st.nth ?? 0;
+      if (list.length <= k) continue;
+      await addItem(list[k].id, { cx: st.cx, floor: st.floor, w: st.w, flip: !!st.flip, turn: st.turn || 0 });
+    }
+    s.sel = -1;
+  }
+  renderUI(); draw();
+}
+
+function current() { return S().items[S().sel]; }
+function setColour(c) { const it = current(); if (!it) return; it.colour = c; renderUI(); refresh(it); }
+
+for (const c of PRESETS) { const b = chip("", false, () => setColour(c), "sw"); b.style.background = c; b.dataset.c = c; b.title = c; $("#swatches").append(b); }
+let pending; $("#picker").oninput = e => { clearTimeout(pending); pending = setTimeout(() => setColour(e.target.value), 30); };
+$("#add").onclick = () => $("#addProduct").value && addItem($("#addProduct").value,
+  { cx: .5, floor: .92, w: DEFAULT_W[byId[$("#addProduct").value].category] || .3 });
+$("#size").oninput = e => { const it = current(); if (it) { it.w = e.target.value / 100; draw(); } };
+$("#mirror").onclick = () => { const it = current(); if (it) { it.flip = !it.flip; renderUI(); draw(); } };
+$("#turn").oninput = e => { const it = current(); if (!it) return; it.turn = +e.target.value; $("#turnVal").textContent = `${it.turn}°`; draw(); };
+$("#resetTurn").onclick = () => { const it = current(); if (it) { it.flip = false; it.turn = 0; renderUI(); draw(); } };
+for (const bg of BGS) {
+  const b = chip(bg.name, false, async () => { S().bg = bg; if (bg.id === "room") await composeRoom(); renderUI(); draw(); });
+  b.dataset.id = bg.id; $("#bgs").append(b);
+}
+$("#upload").onchange = async e => { const f = e.target.files[0]; if (!f) return;
+  S().upload = await load(URL.createObjectURL(f)); S().bg = { id: "upload" }; renderUI(); draw(); };
+const swatchRow = (host, list, key) => list.forEach(([c, name]) => {
+  const b = chip("", false, () => { S()[key] = c; renderUI(); composeRoom(); }, "sw"); b.title = name;
+  if (c) { b.style.background = c; b.dataset.c = c; }
+  else b.style.background = key === "wall" ? "#f7f6f3" : "linear-gradient(135deg,#d8b48a,#b98a5c)";
+  host.append(b);
+});
+swatchRow($("#walls"), WALLS, "wall"); swatchRow($("#woods"), WOODS, "wood");
+let wt; $("#wallPicker").oninput = e => { clearTimeout(wt); wt = setTimeout(() => { S().wall = e.target.value; renderUI(); composeRoom(); }, 40); };
+
+function toStage(e) { const r = stage.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * stage.width, y: (e.clientY - r.top) / r.height * stage.height }; }
+function hit(pt) {
+  const s = S(), order = s.items.map((it, i) => [it, i]).filter(([it]) => it.canvas).sort((a, b) => b[0].floor - a[0].floor);
+  for (const [it, i] of order) { const o = outline(it), xs = o.map(p => p.x), ys = o.map(p => p.y);
+    if (pt.x >= Math.min(...xs) && pt.x <= Math.max(...xs) && pt.y >= Math.min(...ys) && pt.y <= Math.max(...ys)) return i; }
+  return -1;
+}
+let drag = null;
+stage.addEventListener("pointerdown", e => {
+  const pt = toStage(e), i = hit(pt), s = S(); s.sel = i; renderUI(); draw();
+  if (i < 0) return; const it = s.items[i];
+  drag = { pt, cx: it.cx, floor: it.floor }; stage.setPointerCapture(e.pointerId); stage.style.cursor = "grabbing";
+});
+stage.addEventListener("pointermove", e => {
+  const pt = toStage(e);
+  if (!drag) { stage.style.cursor = hit(pt) >= 0 ? "grab" : "default"; return; }
+  const it = current(); it.cx = drag.cx + (pt.x - drag.pt.x) / stage.width; it.floor = drag.floor + (pt.y - drag.pt.y) / stage.height; draw();
+});
+stage.addEventListener("pointerup", () => { drag = null; stage.style.cursor = "default"; });
+stage.addEventListener("wheel", e => { const it = current(); if (!it) return; e.preventDefault();
+  it.w = Math.min(1, Math.max(0.05, it.w * (e.deltaY < 0 ? 1.05 : 0.95))); $("#size").value = Math.round(it.w * 100); draw(); }, { passive: false });
+$("#download").onclick = () => { const s = S(), k = s.sel; s.sel = -1; draw();
+  const a = document.createElement("a"); a.download = `${R().id}.png`; a.href = stage.toDataURL("image/png"); a.click(); s.sel = k; draw(); };
+
+switchRoom(0);
+</script>
+</body>
+</html>

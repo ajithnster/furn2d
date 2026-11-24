@@ -1,0 +1,6 @@
+google-genai==3.6.1
+numpy==2.5.5
+openai==3.57.0
+pillow==13.0.0
+requests==2.34.2
+scipy==1.18.1
