@@ -12,6 +12,13 @@ Environment=HOST=127.0.0.1
 Environment=ORIGIN=https://medharank.com
 # Don't send visitors' usage to the upstream openPlan3D project's Firebase analytics.
 Environment=PUBLIC_ENABLE_ANALYTICS=false
+# AI Render goes through the showroom API (server-side key, rate-limited); visitors need no key.
+Environment=PUBLIC_RENDER_ENDPOINT=/showroom/api/render
+# "Upload floor plan" converts plan images on the showroom API (rate-limited with the other AI features).
+Environment=PUBLIC_PLAN_IMPORT_ENDPOINT=/showroom/api/plan-import
+# Store product ids/prices and the "Get a quote" button (quote page saves quotes on the showroom API).
+Environment=PUBLIC_QUOTE_URL=/showroom/quote/
+Environment=PUBLIC_PRODUCTS_URL=/showroom/products.json
 Environment=NODE_ENV=production
 Restart=always
 

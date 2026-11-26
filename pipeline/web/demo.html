@@ -84,6 +84,7 @@
       <div class="note hide" id="noProducts">No pieces of this type built yet.</div>
       <h2>In the room</h2>
       <div class="items" id="items"></div>
+      <div class="row"><button class="btn" id="quoteBtn" type="button">Get a quote</button><span class="note" id="quoteNote"></span></div>
     </div>
 
     <div class="card" id="editor">
@@ -159,6 +160,7 @@ const FLOOR = 0.86, OBJ_W = 0.88;      // asset geometry: floor line at 86% heig
 const HORIZON = 0.45, FOCAL = 2.2;     // camera model for turning pieces
 
 const $ = s => document.querySelector(s);
+const money = n => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
 const stage = $("#stage"), ctx = stage.getContext("2d");
 const load = src => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
 const imgs = {}; const getImg = async src => imgs[src] ??= await load(src);
@@ -267,14 +269,15 @@ function renderUI() {
                                  chip("House plan", planMode, openPlan, "tab"));
   $("#cats").replaceChildren(...room.cats.map(c => chip(CAT_NAMES[c] || c, c === s.cat, () => { s.cat = c; renderUI(); })));
   const list = ofCat(s.cat);
-  $("#addProduct").replaceChildren(...list.map(p => new Option(p.name, p.id)));
+  $("#addProduct").replaceChildren(...list.map(p => new Option(p.priceFrom ? `${p.name} — from ${money(p.priceFrom)}` : p.name, p.id)));
   $("#noProducts").classList.toggle("hide", list.length > 0);
   $("#add").disabled = !list.length;
 
   $("#items").innerHTML = s.items.length ? "" : '<div class="note">Nothing yet. Add a piece above.</div>';
   s.items.forEach((it, i) => {
     const d = document.createElement("div"); d.className = "item"; d.setAttribute("aria-selected", i === s.sel);
-    d.innerHTML = `<span>${byId[it.pid].name}<br><small>${CAT_NAMES[byId[it.pid].category] || ""}</small></span>`;
+    const pr = byId[it.pid];
+    d.innerHTML = `<span>${pr.name}<br><small>${CAT_NAMES[pr.category] || ""}${pr.code ? " · " + pr.code : ""}${pr.priceFrom ? " · from " + money(pr.priceFrom) : ""}</small></span>`;
     const x = document.createElement("button"); x.className = "x"; x.textContent = "×"; x.title = "Remove";
     x.onclick = e => { e.stopPropagation(); s.items.splice(i, 1); s.sel = Math.min(s.sel, s.items.length - 1); renderUI(); draw(); };
     d.append(x); d.onclick = () => { s.sel = i; renderUI(); draw(); }; $("#items").append(d);
@@ -394,6 +397,19 @@ async function clearRoom() {
   } finally { clearing = false; renderUI(); draw(); }
 }
 $("#clearRoom").onclick = clearRoom;
+
+// ---------- quote: everything placed in all rooms, opened on the quote page ----------
+function quoteItems() {
+  const counts = {};
+  for (const sc of Object.values(scenes)) for (const it of sc.items) if (byId[it.pid]?.productId) counts[it.pid] = (counts[it.pid] || 0) + 1;
+  return counts;
+}
+$("#quoteBtn").onclick = () => {
+  const counts = quoteItems(), ids = Object.keys(counts);
+  if (!ids.length) { $("#quoteNote").textContent = "Add some furniture first."; return; }
+  const items = ids.map(id => `${encodeURIComponent(id)}:${counts[id]}`).join(",");
+  window.open(`quote/#items=${items}&from=composer`, "_blank", "noopener");
+};
 $("#showOriginal").onclick = () => { const s = S(); s.showOriginal = !s.showOriginal; renderUI(); draw(); };
 const swatchRow = (host, list, key) => list.forEach(([c, name]) => {
   const b = chip("", false, () => { S()[key] = c; renderUI(); composeRoom(); }, "sw"); b.title = name;

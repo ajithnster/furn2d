@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your Furniture Quote</title>
+<style>
+  :root { --bg: #f6f3ee; --panel: #fff; --ink: #2b2722; --muted: #7a7268; --line: #e4ded5; --accent: #2b2722; --chip: #f1ece5; --ok: #2f6b45; --err: #a4372b; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 24px 16px 48px; }
+  header { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  h1 { font-size: 22px; margin: 0; }
+  .sub { color: var(--muted); font-size: 13px; }
+  .grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; align-items: start; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .line { display: grid; grid-template-columns: 84px minmax(0, 1fr) auto; gap: 14px; padding: 14px 0; border-top: 1px solid var(--line); }
+  .line:first-child { border-top: 0; padding-top: 0; }
+  .thumb { width: 84px; height: 84px; border-radius: 8px; background: var(--chip) center/contain no-repeat; }
+  .name { font-weight: 600; }
+  .name a { color: inherit; text-decoration: none; } .name a:hover { text-decoration: underline; }
+  .ids { color: var(--muted); font-size: 12px; }
+  .opts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .opts label { display: flex; flex-direction: column; font-size: 11.5px; color: var(--muted); gap: 2px; }
+  select, input, textarea { font: inherit; color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; background: #fff; }
+  select { max-width: 220px; }
+  .right { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+  .price { font-weight: 600; white-space: nowrap; }
+  .qty { width: 64px; text-align: center; }
+  .x { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 12.5px; text-decoration: underline; padding: 0; }
+  .warn { color: var(--err); font-size: 12.5px; }
+  .totals { display: flex; justify-content: space-between; font-size: 16px; font-weight: 700; margin: 4px 0 6px; }
+  .note { color: var(--muted); font-size: 12px; }
+  form { display: flex; flex-direction: column; gap: 10px; }
+  form label { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--muted); }
+  .btn { padding: 11px 14px; border-radius: 10px; border: 1px solid var(--accent); background: var(--accent); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .btn.ghost { background: #fff; color: var(--ink); border-color: var(--line); }
+  .add { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .msg { font-size: 13px; } .msg.err { color: var(--err); } .msg.ok { color: var(--ok); }
+  .done { text-align: center; padding: 28px 16px; }
+  .done .num { font-size: 24px; font-weight: 700; letter-spacing: .02em; margin: 6px 0 10px; }
+  .empty { color: var(--muted); padding: 20px 0; text-align: center; }
+  .hide { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Your furniture quote</h1>
+      <div class="sub" id="sub">Choose size and finish for each piece, then confirm to get your quote.</div>
+    </div>
+    <a class="sub" href="../">← Back to the showroom</a>
+  </header>
+
+  <div class="grid">
+    <div class="card">
+      <div id="lines"></div>
+      <div class="add">
+        <select id="addSel" aria-label="Add another product"></select>
+        <button class="btn ghost" id="addBtn" type="button">Add to quote</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="card" id="formCard">
+        <div class="totals"><span>Total</span><span id="total">$0</span></div>
+        <div class="note" id="priceNote"></div>
+        <form id="form" novalidate>
+          <label>Name<input name="name" autocomplete="name" required maxlength="100"></label>
+          <label>Email<input name="email" type="email" autocomplete="email" required maxlength="254"></label>
+          <label>Phone (optional)<input name="phone" type="tel" autocomplete="tel" maxlength="30"></label>
+          <label>Notes (optional)<textarea name="notes" rows="3" maxlength="1000" placeholder="Delivery area, timing, questions…"></textarea></label>
+          <button class="btn" id="confirm" type="submit">Confirm and get quote</button>
+          <div class="msg" id="msg" role="status"></div>
+          <div class="note">We'll save your quote and the Verona team will contact you. Your details are used only for this quote.</div>
+        </form>
+      </div>
+      <div class="card done hide" id="doneCard">
+        <div class="note">Quote confirmed</div>
+        <div class="num" id="qnum"></div>
+        <div class="note" id="qinfo"></div>
+        <p><button class="btn" id="pdf" type="button">Download PDF</button></p>
+        <div class="note">A copy has been sent to the Verona team.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+const $ = s => document.querySelector(s);
+const money = (n, cur = 'USD') => new Intl.NumberFormat('en-US', { style: 'currency', currency: cur, maximumFractionDigits: n % 1 ? 2 : 0 }).format(n);
+let catalog = null, lines = [], confirmed = null;
+
+// Items arrive as #items=<handle or House plan id>:<qty>,…&from=composer|houseplan
+const hash = new URLSearchParams(location.hash.slice(1));
+const source = hash.get('from') || '';
+const requested = (hash.get('items') || '').split(',').filter(Boolean).map(s => {
+  const [id, q] = s.split(':'); return { id: decodeURIComponent(id), qty: Math.max(1, Math.min(50, parseInt(q, 10) || 1)) };
+});
+
+function findProduct(id) { return catalog.products.find(p => p.handle === id || p.planId === id || p.productId === id); }
+function variantFor(line) {
+  const p = line.product;
+  if (!p.options.length) return p.variants[0];
+  return p.variants.find(v => v.options.every((o, i) => o === line.choice[i])) || null;
+}
+function newLine(p, qty) {
+  // Start from the cheapest variant (the "from" price).
+  const v = [...p.variants].sort((a, b) => a.price - b.price)[0];
+  return { product: p, qty, choice: [...v.options] };
+}
+
+function render() {
+  const host = $('#lines'); host.replaceChildren();
+  if (!lines.length) { host.innerHTML = '<div class="empty">No furniture in this quote yet. Add a product below.</div>'; }
+  lines.forEach((line, idx) => {
+    const p = line.product, v = variantFor(line);
+    const row = document.createElement('div'); row.className = 'line';
+    const thumb = document.createElement('div'); thumb.className = 'thumb'; if (p.image) { const u = new URL(p.image); u.searchParams.set('width', '200'); thumb.style.backgroundImage = `url("${u}")`; }
+    const mid = document.createElement('div');
+    mid.innerHTML = `<div class="name"><a href="${p.url}" target="_blank" rel="noopener">${p.name}</a></div>
+      <div class="ids">${p.code} · Product ID ${p.productId}${v ? ' · Variant ID ' + v.id : ''}${v && v.sku ? ' · SKU ' + v.sku : ''}</div>`;
+    const opts = document.createElement('div'); opts.className = 'opts';
+    p.options.forEach((o, i) => {
+      const lab = document.createElement('label'); lab.textContent = o.name;
+      const sel = document.createElement('select');
+      // Only values that exist together with the earlier choices.
+      const ok = new Set(p.variants.filter(v2 => v2.options.slice(0, i).every((x, j) => x === line.choice[j])).map(v2 => v2.options[i]));
+      o.values.filter(val => ok.has(val)).forEach(val => sel.append(new Option(val, val, false, val === line.choice[i])));
+      if (!ok.has(line.choice[i])) { line.choice[i] = sel.options[0]?.value; }
+      sel.onchange = () => { line.choice[i] = sel.value; for (let k = i + 1; k < p.options.length; k++) { const has = p.variants.some(v2 => v2.options.slice(0, k).every((x, j) => x === line.choice[j]) && v2.options[k] === line.choice[k]); if (!has) line.choice[k] = undefined; } render(); };
+      lab.append(sel); opts.append(lab);
+    });
+    mid.append(opts);
+    if (!v) { const w = document.createElement('div'); w.className = 'warn'; w.textContent = 'This combination is not available. Choose another option.'; mid.append(w); }
+    const right = document.createElement('div'); right.className = 'right';
+    const price = document.createElement('div'); price.className = 'price'; price.textContent = v ? money(v.price * line.qty) : '—';
+    const each = document.createElement('div'); each.className = 'note'; each.textContent = v && line.qty > 1 ? `${money(v.price)} each` : '';
+    const qty = document.createElement('input'); qty.className = 'qty'; qty.type = 'number'; qty.min = 1; qty.max = 50; qty.value = line.qty; qty.setAttribute('aria-label', 'Quantity');
+    qty.onchange = () => { line.qty = Math.max(1, Math.min(50, parseInt(qty.value, 10) || 1)); render(); };
+    const rm = document.createElement('button'); rm.className = 'x'; rm.type = 'button'; rm.textContent = 'Remove';
+    rm.onclick = () => { lines.splice(idx, 1); render(); };
+    right.append(price, each, qty, rm);
+    row.append(thumb, mid, right); host.append(row);
+  });
+  const total = lines.reduce((s, l) => { const v = variantFor(l); return s + (v ? v.price * l.qty : 0); }, 0);
+  $('#total').textContent = money(total, catalog.currency);
+  $('#confirm').disabled = !lines.length || lines.some(l => !variantFor(l)) || !!confirmed;
+}
+
+function setMsg(text, kind) { const m = $('#msg'); m.textContent = text || ''; m.className = 'msg ' + (kind || ''); }
+
+$('#addBtn').onclick = () => {
+  const p = findProduct($('#addSel').value); if (!p) return;
+  const same = lines.find(l => l.product === p); if (same) same.qty = Math.min(50, same.qty + 1); else lines.push(newLine(p, 1));
+  render();
+};
+
+$('#form').onsubmit = async e => {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  const contact = Object.fromEntries(['name', 'email', 'phone', 'notes'].map(k => [k, String(f.get(k) || '').trim()]));
+  if (!contact.name) return setMsg('Please enter your name.', 'err');
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(contact.email)) return setMsg('Please enter a valid email address.', 'err');
+  const items = lines.map(l => ({ productId: l.product.productId, variantId: variantFor(l).id, qty: l.qty }));
+  $('#confirm').disabled = true; setMsg('Saving your quote…');
+  try {
+    const r = await fetch('../api/quote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items, contact, source }) });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || `Something went wrong (${r.status}). Please try again.`);
+    confirmed = data;
+    $('#formCard').classList.add('hide'); $('#doneCard').classList.remove('hide');
+    $('#qnum').textContent = data.number;
+    $('#qinfo').textContent = `${data.lines.length} item${data.lines.length > 1 ? 's' : ''} · ${money(data.subtotal, data.currency)} · valid until ${data.validUntil}`;
+    document.querySelectorAll('#lines select, #lines input, #lines button, .add select, .add button').forEach(el => el.disabled = true);
+    downloadPdf();
+  } catch (err) {
+    setMsg(err.message || 'Could not reach the server. Please try again.', 'err'); $('#confirm').disabled = false;
+  }
+};
+
+function downloadPdf() {
+  const q = confirmed; if (!q || !window.jspdf) return;
+  const doc = new window.jspdf.jsPDF({ unit: 'pt', format: 'a4' });
+  const W = doc.internal.pageSize.getWidth(), M = 48; let y = 60;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.text('Verona Home Furniture', M, y);
+  doc.setFontSize(12); doc.text('Quote ' + q.number, W - M, y, { align: 'right' });
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(110);
+  y += 16; doc.text('veronahomefurniture.com', M, y);
+  doc.text(`Date ${q.createdAt.slice(0, 10)} · Valid until ${q.validUntil}`, W - M, y, { align: 'right' });
+  y += 30; doc.setTextColor(40); doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold'); doc.text('Prepared for', M, y); doc.setFont('helvetica', 'normal');
+  [q.contact.name, q.contact.email, q.contact.phone].filter(Boolean).forEach(t => { y += 14; doc.text(t, M, y); });
+  y += 28;
+  const cols = [M, M + 188, W - M - 111, W - M - 71, W - M];   // item | option | unit | qty | total
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5);
+  doc.text('Item', cols[0], y); doc.text('Option', cols[1], y); doc.text('Unit', cols[2], y, { align: 'right' });
+  doc.text('Qty', cols[3], y, { align: 'right' }); doc.text('Total', cols[4], y, { align: 'right' });
+  y += 6; doc.setDrawColor(200); doc.line(M, y, W - M, y); doc.setFont('helvetica', 'normal');
+  for (const l of q.lines) {
+    y += 16;
+    if (y > 760) { doc.addPage(); y = 60; }
+    const opt = doc.splitTextToSize(l.variant || '—', 122), name = doc.splitTextToSize(l.name, 180);
+    doc.setTextColor(40); doc.text(name, cols[0], y); doc.text(opt, cols[1], y);
+    doc.text(money(l.unitPrice, q.currency), cols[2], y, { align: 'right' }); doc.text(String(l.qty), cols[3], y, { align: 'right' });
+    doc.text(money(l.lineTotal, q.currency), cols[4], y, { align: 'right' });
+    const h = Math.max(name.length, opt.length) * 11;
+    doc.setFontSize(8); doc.setTextColor(120);
+    doc.text(`${l.code} · Product ${l.productId} · Variant ${l.variantId}${l.sku ? ' · SKU ' + l.sku : ''}`, cols[0], y + h + 1);
+    doc.setFontSize(9.5); y += h + 8;
+  }
+  y += 6; doc.line(M, y, W - M, y); y += 18;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(40);
+  doc.text('Total', cols[3], y, { align: 'right' }); doc.text(money(q.subtotal, q.currency), cols[4], y, { align: 'right' });
+  y += 26; doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(110);
+  const fine = `Prices in ${q.currency} from veronahomefurniture.com as of ${q.pricesAsOf}, excluding tax and delivery. ` +
+    `This quote is valid until ${q.validUntil}; the Verona team will confirm availability and final pricing.` +
+    (q.contact.notes ? `\nYour notes: ${q.contact.notes}` : '');
+  doc.text(doc.splitTextToSize(fine, W - 2 * M), M, y);
+  doc.save(`Verona-quote-${q.number}.pdf`);
+}
+$('#pdf').onclick = downloadPdf;
+
+(async () => {
+  try {
+    catalog = await (await fetch('../products.json', { cache: 'no-cache' })).json();
+  } catch {
+    $('#lines').innerHTML = '<div class="empty">The product list could not be loaded. Please reload the page.</div>'; return;
+  }
+  for (const r of requested) {
+    const p = findProduct(r.id); if (!p) continue;
+    const same = lines.find(l => l.product === p); if (same) same.qty = Math.min(50, same.qty + r.qty); else lines.push(newLine(p, r.qty));
+  }
+  $('#addSel').replaceChildren(...catalog.products.map(p => new Option(`${p.name} — from ${money(p.priceFrom, catalog.currency)}`, p.handle)));
+  $('#priceNote').textContent = `Prices in ${catalog.currency} as of ${catalog.pricesAsOf}, excluding tax and delivery.`;
+  if (source) $('#sub').textContent = `Furniture from your ${source === 'houseplan' ? 'house plan' : 'room design'}. Choose size and finish for each piece, then confirm.`;
+  render();
+})();
+</script>
+</body>
+</html>

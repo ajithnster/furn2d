@@ -54,6 +54,8 @@ def _rooms(out_root: Path) -> list[dict]:
 
 
 def write(assets_dir: Path) -> Path:
+    shop_file = assets_dir.parent / 'showroom' / 'products.json'     # from `pipeline products`
+    shop = {p['handle']: p for p in json.loads(shop_file.read_text())['products']} if shop_file.exists() else {}
     products = []
     for meta_path in sorted(assets_dir.glob("*/asset.json")):
         meta = json.loads(meta_path.read_text())
@@ -64,6 +66,8 @@ def write(assets_dir: Path) -> Path:
         products.append({
             "id": meta["id"], "name": meta.get("name", meta["id"]), "category": meta.get("category", "sofa"),
             "looks": looks,
+            "code": shop.get(meta["id"], {}).get("code"), "productId": shop.get(meta["id"], {}).get("productId"),
+            "priceFrom": shop.get(meta["id"], {}).get("priceFrom"),
             "neutral": _data_uri(d / rec["base"]) if rec else None,
             "shading": _data_uri(d / rec["shading"]) if rec else None,
         })

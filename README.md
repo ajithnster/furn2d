@@ -89,6 +89,39 @@ cd openPlan3D && BASE_PATH=/showroom/plan BUILD_DIR=build-showroom NODE_ENV=prod
 # then: systemctl restart openplan3d
 ```
 
+## Floor plan image → editable plan (House plan tab)
+
+**Upload floor plan** (House plan home page and welcome screen) turns a plan image into an editable
+OpenPlan3D project. Walls, door/window gaps, rooms, and door types and swings come from image
+processing (`tools/plan-import/plan_geometry.py`); one Gemini call reads room labels and written sizes
+(scale) and tells windows from sliding doors (`plan_to_openplan.py`). Rooms are named in the browser
+with the editor's own detection (`openPlan3D/src/lib/services/planImageImport.ts`).
+
+Server: `POST /showroom/api/plan-import` in `server/clear_room.py` runs `server/plan_import_worker.py`
+in `/opt/showroom-api/venv` (numpy, scipy, pillow) with `plan_import/` = `tools/plan-import/*.py`;
+uploads live only in a temp dir for the request. Same per-visitor and daily limits as the other AI
+features. Works best on clean plans (dark walls, light background); without printed room sizes the
+scale is estimated from door widths and the project description says so.
+
+Try locally: `.venv/bin/python tools/plan-import/plan_to_openplan.py plan.png out.json --debug DIR`
+(`DIR/plan-marked.png` shows what was detected), then `name_rooms.mjs` (see its header).
+
+## Product IDs, prices and quotes
+
+`.venv/bin/python -m pipeline products` writes `out/showroom/products.json` from the cached store data
+(cache/shopify): Shopify product id + short code (VH-xxxxxx), options, every variant's id and price,
+and the House plan id. Refresh prices with `pipeline scrape --collection …` then `pipeline products`,
+and copy the file to `/var/www/showroom/products.json`.
+
+- Room composer (`pipeline/web/demo.html`) and House plan (openPlan3D `shopQuote.ts`, enabled by
+  `PUBLIC_QUOTE_URL` / `PUBLIC_PRODUCTS_URL`) show code and price and have **Get a quote**.
+- Quote page `/showroom/quote/` (`pipeline/web/quote.html`): pick variants, quantities, contact details;
+  **Confirm** posts to `POST /showroom/api/quote`, which re-prices everything from its own products.json,
+  saves `/var/lib/showroom-api/quotes/<number>.json` and returns the quote; the page downloads a PDF.
+- Store list `/showroom/quotes/` (`pipeline/web/quotes-admin.html`) and `GET /showroom/api/quotes`:
+  nginx basic auth, user `verona`, hash in `/etc/nginx/showroom-quotes.htpasswd`. Change the password:
+  `printf 'NEW' | openssl passwd -apr1 -stdin` → `verona:<hash>` in that file, then `systemctl reload nginx`.
+
 ## Setup
 
 ```bash

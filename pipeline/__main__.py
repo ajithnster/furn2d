@@ -230,8 +230,13 @@ def main(argv=None) -> None:
     r.add_argument("--force", action="store_true")
     r.add_argument("--no-generate", action="store_true")
 
+    sub.add_parser("products", help="showroom product data (ids, variants, prices) for quotes -> out/showroom/products.json")
+
     args = ap.parse_args(argv)
-    if args.cmd == "scrape":
+    if args.cmd == "products":
+        from . import products
+        print(products.build())
+    elif args.cmd == "scrape":
         scrape.run(args.collection, CATALOG, args.max_variants, args.category, merge=not args.fresh)
     elif args.cmd == "assets":
         build_assets(args)

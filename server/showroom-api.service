@@ -14,6 +14,9 @@ Environment=STATE_FILE=/var/lib/showroom-api/usage.json
 # GEMINI_API_KEY=... lives in this file (root-owned, chmod 600).
 EnvironmentFile=/etc/showroom-api.env
 StateDirectory=showroom-api
+# Saved quotes hold customer contact details: readable by this service only.
+StateDirectoryMode=0750
+UMask=0027
 Restart=always
 
 [Install]
